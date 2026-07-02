@@ -30,6 +30,10 @@ everything here generic and self-contained — do not assume a specific consumin
 ## When you change anything here
 
 - Update `README.md` if you add, remove, or rename a command or skill (it has a table of each).
+- Update `CHANGELOG.md` for every meaningful change, in the same commit. Add one-line
+  entries under `## [Unreleased]` using Keep a Changelog categories (Added / Changed /
+  Fixed / Removed). Never rewrite entries under a released version heading.
 - Bump `version` in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-  when publishing a meaningful change.
+  when publishing a meaningful change. When you bump, rename `## [Unreleased]` to
+  `## [x.y.z] - YYYY-MM-DD` in `CHANGELOG.md` and start a fresh empty `## [Unreleased]`.
 - Keep `name` fields lowercase-with-hyphens and matching the file/directory name.

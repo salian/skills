@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Salian's Claude Toolkit — reusable Claude Code skills and commands.",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {

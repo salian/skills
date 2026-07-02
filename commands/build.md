@@ -23,12 +23,16 @@ Execute a prompt pack end-to-end: read the spec, build every deliverable, write 
 
 #### 1a. Find and read the prompt pack
 
+**Normalize the ID before globbing.** Milestone IDs are written `M12` / `M7a`, but pack files are named by zero-padded numeric prefix (`12_LEAD_CAPTURE.prompt.md`, `07a_TESTING_CORE.prompt.md`). Strip a leading `M`/`m` and left-pad the number to two digits (`M12` → `12`, `M7a` → `07a`), then glob for that prefix. Both forms are accepted as `$ARGUMENTS`.
+
 ```
-docs/prompt-packs/*$ARGUMENTS*
-docs/prompts/*$ARGUMENTS*
-prompts/*$ARGUMENTS*
-.prompts/*$ARGUMENTS*
+docs/prompt-packs/<NN>*
+docs/prompts/<NN>*
+prompts/<NN>*
+.prompts/<NN>*
 ```
+
+If the glob matches multiple packs (e.g. `12` matching both `12a_` and `12b_`), list the matches and ask which one — never guess.
 
 Read the full prompt pack file.
 

@@ -49,6 +49,8 @@ Resolve `$ARGUMENTS` to a `--base` commit using this priority:
 
 #### 2a. Prompt-pack ID given (e.g. `M12`, `M7`, `sprint-3`)
 
+To read the pack file itself, normalize the ID to the file-name prefix first: strip a leading `M`/`m` and zero-pad to two digits (`M12` → `docs/prompt-packs/12_*.prompt.md`, `M7a` → `07a_*.prompt.md`).
+
 Find the first commit belonging to this prompt pack by grepping the git log for the scope or milestone keyword:
 
 ```bash

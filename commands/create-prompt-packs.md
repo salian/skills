@@ -33,6 +33,29 @@ Read ALL discovered spec files before proceeding. If no specs are found, ask the
 
 ---
 
+## STEP 1.5: RED-TEAM THE SPECS (ADVERSARIAL REVIEW BEFORE DECOMPOSITION)
+
+Everything downstream of this command verifies code against packs and packs against specs — **nothing verifies the specs themselves**. A wrong or contradictory spec is faithfully decomposed, built, wired, and verified. So before decomposing, run one adversarial pass over the full spec corpus gathered in STEP 1.
+
+Delegate the pass to a clean-context subagent (Task tool) whose only input is the spec files — not this conversation — so it reads them cold, the way the executing LLM will. (If the corpus is trivially small, under ~200 lines total, do the same pass inline instead.) The pass hunts for:
+
+- **Contradictions** — two specs (or two sections of one) disagreeing on a field, flow, limit, name, or owner
+- **Missing lifecycles** — an entity with a create but no update/delete/archive story; a state with no exit transition
+- **Unstated assumptions** — tenancy, auth model, time zones, currency, ordering, scale, or retention the spec silently relies on
+- **Ambiguous ownership** — a feature that could plausibly land in two different modules (a future pack-collision seed)
+- **Underspecified integrations** — a third party named without auth, failure behavior, or rate-limit handling
+- **Silent day-one gaps** — things a real user would expect immediately (empty states, permissions, exports) that no spec mentions
+
+Triage every finding into exactly one bucket:
+
+1. **Blocking** — either resolution would change the milestone decomposition, the data model, or the Schema Object Registry. Batch ALL blocking findings into one numbered question message to the user and STOP until answered. Never decompose around an unresolved blocking ambiguity.
+2. **Fixable in place** — a clear spec defect with one sensible resolution. Edit the spec file directly and list the edit in the generation summary.
+3. **Minor** — won't change decomposition. Record it as an explicit assumption in the Context Snapshot of whichever pack it touches (STEP 7 already requires assumptions to be restated), or as a `docs/dev/backlog.md` seed entry if it's a real-but-deferred item.
+
+Do not proceed to STEP 2 with unanswered blocking findings.
+
+---
+
 ## STEP 2: OPERATING CONTEXT (DISCIPLINE)
 
 Apply the following engineering philosophy:
@@ -78,8 +101,20 @@ Example flow (adjust based on project scope):
 - M7 -- Testing & Validation
 - M8 -- Deployment Hardening
 - M9 -- Release Validation
+- M10 -- Backlog Sweep & Hardening (mandatory final pack — see below)
 
 If product scope is smaller or larger, collapse or expand responsibly but preserve order logic.
+
+### Mandatory final milestone: Backlog Sweep & Hardening
+
+The last pack in every generated set MUST be a backlog-sweep pack (`NN_HARDENING_BACKLOG_SWEEP.prompt.md`, numbered after the final feature milestone). During execution, `/build` (pre-flight deferrals), `/verify-build` (out-of-scope requirements), `/verify-wiring` (advisory Checks G–L), and `/review-externally` (real-but-later findings) all write deferred items to `docs/dev/backlog.md` — but no feature pack reads it, because all packs are generated before the backlog exists. Without this pack the backlog has writers and no reader, and deferred items accumulate forever.
+
+Because its content is unknowable at generation time, this pack is shaped differently from feature packs:
+
+- **Section 7** names `docs/dev/backlog.md` (its `## Open` entries) as the work queue instead of a concrete file list. The ≤12-files / ≤8-commits context budget does not apply; instead, instruct the executing LLM to process the backlog in priority order and split into resumable sub-sessions if it is large.
+- **Process:** read every `## Open` entry and triage each as (a) **build now**, (b) **won't build** — close with a one-line reason, or (c) **re-defer** — only with a named future home; "later" alone is not a home. Implement accepted items with the full sections 8–12 discipline applied per item (wiring, tests, failure modes), and move resolved entries to `## Done` citing this pack.
+- **Section 12:** acceptance = `## Open` is empty, or every remaining entry carries an explicit won't-build / re-defer disposition dated by this pack.
+- It still ends with the standard 13–18 preamble reference block — all five verification passes run on it like any other pack.
 
 ### Sub-Milestone Splitting (Context Budget)
 
@@ -156,6 +191,7 @@ Output all prompt-pack files to `docs/prompt-packs/` relative to the project roo
   01_PROJECT_BOOTSTRAP.prompt.md
   02_ARCHITECTURE_FOUNDATION.prompt.md
   ...additional milestones...
+  NN_HARDENING_BACKLOG_SWEEP.prompt.md   (mandatory final pack — STEP 3)
   README.md
 ```
 
@@ -404,7 +440,7 @@ This file must be self-contained — the executing LLM reads it once alongside t
 
 The `/docs/prompt-packs/README.md` must include:
 
-- Execution order (list all prompts in sequence)
+- Execution order (list all prompts in sequence, ending with the mandatory `NN_HARDENING_BACKLOG_SWEEP` pack)
 - Instruction to read `_PREAMBLE.prompt.md` before executing any milestone
 - Instruction to treat `_SCHEMA_REGISTRY.md` as the authoritative schema-object namespace — a pack declares only the objects it OWNS there and consumes every other by its exact registry name (never re-declares or renames)
 - How to resume after partial execution
@@ -462,6 +498,7 @@ Walk every generated pack against this checklist and fix violations before repor
 - [ ] Every section 3 entry leads with a full repo-relative file path in backticks — no bare document IDs or nicknames (grep packs for ID patterns like `[A-Z]+-[A-Z]+-[0-9]+ §` and `\b(PRD|BRD) §` at entry starts; rewrite any hits)
 - [ ] `_PREAMBLE.prompt.md` exists, defines all five verification passes, and every pack's reference block says "5 passes"
 - [ ] README.md lists every pack (including sub-milestone letter files) in execution order
+- [ ] The final pack in execution order is the backlog-sweep pack (`NN_HARDENING_BACKLOG_SWEEP`), and its Section 7 names `docs/dev/backlog.md` as its work queue
 - [ ] Each pack's Context Snapshot lists exactly the prior milestones that exist as files — no gaps, no phantom milestones
 - [ ] **`_SCHEMA_REGISTRY.md` exists** and every table/enum named in any pack's Section 7 (declared) or Section 2 (consumed) appears as a registry row with exactly one owner.
 - [ ] **Registry conformance — no collisions, no drift.** Extract every schema object each pack DECLARES (Section 7) and CONSUMES (Section 2), and assert: (a) **no** table/enum name is declared by more than one pack; (b) every CONSUMED name exists in the registry with a declaring owner; (c) no consumed name is a paraphrase/variant of an owned name — the drift check (e.g. a pack consumes `crm_contact` but the owner declares `contact`, or consumes `lms_module` but the owner declares `module`); (d) every OWNED name obeys the STEP-2 domain-prefix rule — flag bare generic nouns (`task`, `contact`, `message`, `module`, `assessment`, `document`, `payment`, `agent`, `status`, …) that lack a domain prefix. Any hit is fixed (rename + update the registry + every referencing pack) before declaring done. *This mechanical pass is what converts collision-catching from a post-hoc audit into a generation-time gate.*
@@ -566,7 +603,7 @@ If ambiguity exists in the specs:
 
 ---
 
-Now begin. Read the specs, decompose the product, and generate the full prompt-pack system.
+Now begin. Read the specs, red-team them (STEP 1.5), decompose the product, and generate the full prompt-pack system.
 
 ---
 
@@ -587,7 +624,9 @@ After generating all prompt-pack files, remind the user of the full execution an
 4. /review-externally M[N]     — code quality: bugs, logic errors, security issues?
    Fix any findings.
 
-All four commands take the same milestone ID.
+All four commands take the same milestone ID. IDs map to file prefixes by
+stripping the M and zero-padding (M7a → 07a_*.prompt.md); the commands accept
+either form.
 Run them in order — each assumes the previous step is done.
 Do NOT skip any of these. All are mandatory.
 

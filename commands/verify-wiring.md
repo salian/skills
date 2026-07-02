@@ -1,5 +1,4 @@
 ---
-name: verify-wiring
 description: Post-prompt-pack integration wiring audit. Verifies every feature built by a prompt pack is reachable end-to-end — not just structurally present, but actually wired into navigation, API callers, schedulers, and UI. Works across any web project that uses prompt packs.
 argument-hint: "[prompt-pack ID, e.g. M12]"
 allowed-tools: Read, Glob, Grep, Bash(grep:*), Bash(ls:*), Bash(find:*), Agent
@@ -30,17 +29,17 @@ Before running checks, detect the project's framework and conventions. This make
 
 #### 0a. Locate prompt packs
 
-Search for the prompt pack matching `$ARGUMENTS`:
+**Normalize the ID before globbing.** Milestone IDs are written `M12` / `M7a`, but pack files are named by zero-padded numeric prefix (`12_LEAD_CAPTURE.prompt.md`, `07a_TESTING_CORE.prompt.md`). Strip a leading `M`/`m` and left-pad the number to two digits (`M12` → `12`, `M7a` → `07a`), then glob for that prefix. Both forms are accepted as `$ARGUMENTS`.
 
 ```
 # Common locations — try in order
-docs/prompt-packs/*$ARGUMENTS*
-docs/prompts/*$ARGUMENTS*
-prompts/*$ARGUMENTS*
-.prompts/*$ARGUMENTS*
+docs/prompt-packs/<NN>*
+docs/prompts/<NN>*
+prompts/<NN>*
+.prompts/<NN>*
 ```
 
-If not found, ask the user for the path.
+If the glob matches multiple packs (e.g. `12` matching both `12a_` and `12b_`), list the matches and ask which one — never guess. If not found, ask the user for the path.
 
 #### 0b. Detect framework and conventions
 
@@ -337,6 +336,8 @@ Output a structured summary:
 
 If A–F gaps exist, end with: **"Fix all N gaps?"**
 If only G–L questions exist, end with: **"Review M spec-gap questions? (Recorded in `docs/dev/backlog.md`.)"** — never auto-fix these.
+
+**Exception:** when invoked by `/build-verify-review` (or any autonomous orchestrator), do NOT ask either question — report the gaps and questions and end the audit. The orchestrator applies A–F fixes itself and surfaces G–L questions at the pack boundary; asking violates its autonomy contract.
 
 State which G–L findings were written to `docs/dev/backlog.md` (new ids), which were skipped as already-tracked or resolved-by-design, and which were left report-only as too speculative.
 

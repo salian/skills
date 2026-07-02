@@ -22,16 +22,18 @@ It's common to finish a prompt pack and believe everything is done because the c
 
 #### 0a. Find the prompt pack
 
-Search for the prompt pack matching `$ARGUMENTS`:
+**Normalize the ID before globbing.** Milestone IDs are written `M12` / `M7a`, but pack files are named by zero-padded numeric prefix (`12_LEAD_CAPTURE.prompt.md`, `07a_TESTING_CORE.prompt.md`). Strip a leading `M`/`m` and left-pad the number to two digits (`M12` → `12`, `M7a` → `07a`), then glob for that prefix. Both forms are accepted as `$ARGUMENTS`.
+
+Search for the prompt pack matching the normalized ID:
 
 ```
-docs/prompt-packs/*$ARGUMENTS*
-docs/prompts/*$ARGUMENTS*
-prompts/*$ARGUMENTS*
-.prompts/*$ARGUMENTS*
+docs/prompt-packs/<NN>*
+docs/prompts/<NN>*
+prompts/<NN>*
+.prompts/<NN>*
 ```
 
-If not found, ask the user for the path.
+If the glob matches multiple packs (e.g. `12` matching both `12a_` and `12b_`), list the matches and ask which one — never guess. If not found, ask the user for the path.
 
 #### 0b. Read referenced specs
 
@@ -94,7 +96,7 @@ If the pack has a populated Failure Modes table, walk every row:
 3. **Skipped rows are justified**: every N/A row carries its inline reason; bare "N/A" is a gap
 4. **Stateful-protocol packs carry interleaving tests**: if the pack implements a claim/lock/retry/dedupe protocol, confirm each concurrency invariant has a matching interleaving test (concurrent actors / crash-resume / double-fire), not only a state matrix. A matrix with no interleaving test for a concurrency invariant is a gap.
 
-Missing mitigation tests are **build failures**, not warnings. If the pack omitted Section 11 entirely, check its one-line justification is plausible (pure-transform / schema-only / UI-only / type-only); if the pack ships an outbound fetch, worker, pipeline, or read-then-write sequence with no 8a section, flag that as a spec defect in the report.
+Missing mitigation tests are **build failures**, not warnings. If the pack omitted Section 11 entirely, check its one-line justification is plausible (pure-transform / schema-only / UI-only / type-only); if the pack ships an outbound fetch, worker, pipeline, or read-then-write sequence with no Section 11 failure-modes table, flag that as a spec defect in the report.
 
 ### Phase 3.6: Audit sibling write-path parity
 
@@ -186,6 +188,8 @@ Output a structured summary:
 ```
 
 If gaps are found, end with: **"Fix all N gaps?"**
+
+**Exception:** when invoked by `/build-verify-review` (or any autonomous orchestrator), do NOT ask — report the gaps and end the audit. The orchestrator applies fixes and re-runs; asking "Fix all N gaps?" violates its autonomy contract.
 
 ## Rules
 

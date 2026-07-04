@@ -227,7 +227,33 @@ Write the code for this step's files. Follow these rules strictly:
 - **Match existing patterns.** Don't invent new conventions — follow what prior milestones established.
 - **Use the design system.** If CLAUDE.md specifies UI components, use them. No raw HTML.
 - **Wire as you build.** Don't just create the library function — also add the import and call site in the route/handler that uses it (per Section 8 wiring table). If the caller doesn't exist yet (it's a later step), note it as a wiring TODO.
-- **Respect non-goals.** Check Section 5 (Non-Goals) and Section 15 (Overbuild Prevention) before adding any feature. If you're tempted to add something not in the spec, don't.
+- **Respect non-goals — but capture, don't discard.** Check Section 5 (Non-Goals) and Section 15 (Overbuild Prevention) before adding any feature. If you're tempted to add something not in the spec, don't build it — and don't throw the thought away either. You are closer to the code than the pack author was; genuine improvements you notice (a better design, a missing affordance a real user would want, a simplification, a risky pattern worth revisiting) go into `docs/dev/ideas.md` as a ≤3-line entry: **what / why it's better / where** (`file:line`), tagged with the pack id, phase, and date. Create the file from the template below if absent (same directory as the project's backlog file). Distinction that keeps both files honest: **backlog.md = spec'd-but-deferred obligations** (will be built, has a home); **ideas.md = unspecced suggestions** (may never be built; accepting one is a product decision for the user). Never build directly from ideas.md, and never self-promote an idea into scope.
+
+  Ideas ledger template (when creating it fresh):
+
+  ```markdown
+  # Ideas Ledger
+
+  Unspecced improvement ideas noticed during execution — captured instead of
+  discarded by overbuild prevention. Companion to `backlog.md`:
+  **backlog = spec'd-but-deferred obligations** (will be built; named home) ·
+  **ideas = unspecced suggestions** (maybe never; accepting one is a product
+  decision for the USER, at triage — never the executing LLM's call).
+
+  Rules: entries ≤3 lines (what / why it's better / where, with source
+  `<pack-id> <phase> (<date>)`); dedupe by the "what"; never build directly
+  from this file. Accepted → promote to a spec edit or backlog entry with a
+  named home; rejected → `## Closed` with a one-line reason.
+
+  ## Open
+
+  _(none yet)_
+
+  ## Closed
+
+  _(none yet)_
+  ```
+- **Honor the page contract.** For any UI page deliverable, locate the page's row in the spec's page-definition matrix (if one exists) and treat its listed columns, filters, and actions as acceptance criteria alongside the pack text — the pack may have summarized the row; the row wins. Apply the project's list-view baseline (search/filter/sort/pagination/export) unless the pack explicitly non-goals an element.
 - **Handle errors.** Every DB query, API call, and external service interaction needs error handling. Don't leave happy-path-only code.
 - **Ship mitigations with the code they protect.** If Section 11 assigns a failure-mode row to this step's deliverables, the guard function/config lands in the same commit as the fetch/worker/pipeline it guards — never as a follow-up step.
 - **Discharge pre-flight obligations.** Before marking this step complete, check the Phase 2.5 checklist for any rows assigned to this step. Each must be either satisfied in this commit or moved to a later step with a written reason. A row that silently disappears is a bug.
@@ -293,6 +319,7 @@ Print the verification reminder:
 ## Build complete: M[N]
 
 All N steps executed. N commits created. Tests passing.
+Ideas captured to docs/dev/ideas.md this build: [list ids/titles, or "none"]
 
 Run the verification pipeline:
 

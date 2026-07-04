@@ -21,6 +21,7 @@ Add a Self-Improvement Loop to this project's CLAUDE.md. This enriches any proje
    - `## Automatic Behaviors`
    - `### Changelog`
    - `### Backlog`
+   - `### Ideas Ledger`
    - `### Commits`
    - `### Makefile`
    - `## Phase Workflow`
@@ -33,6 +34,8 @@ Add a Self-Improvement Loop to this project's CLAUDE.md. This enriches any proje
 5. If a `CHANGELOG.md` doesn't exist yet, create one with the Keep a Changelog format header.
 
 5a. If the project uses prompt packs (a `docs/prompt-packs/` directory exists) and the backlog file doesn't exist, create it with a minimal header — `# Deferred-Items Backlog`, a one-line purpose, and empty `## Open` / `## Done` sections. Use the path chosen per the Backlog adaptation rule below (default `docs/dev/backlog.md`). In projects WITHOUT prompt packs, don't create the file — there are no automatic writers, so let it appear lazily if the team starts a manual one.
+
+5b. Same rule for the ideas ledger: if the project uses prompt packs and `docs/dev/ideas.md` (sibling path to the backlog) doesn't exist, create it with the contract header — a one-line purpose ("unspecced improvement ideas captured instead of discarded by overbuild prevention"), the backlog-vs-ideas distinction table (backlog = spec'd-but-deferred obligations, pack-owned; ideas = unspecced suggestions, **user**-triaged), the ≤3-line entry rule (what / why better / where, with source), the never-build-directly-from-this-file rule, and empty `## Open` / `## Closed` sections. Skip in non-prompt-pack projects.
 
 6. **Verify `.gitignore` enforcement** (the never-commit concern belongs in tooling, not prose). Check that `.gitignore` exists and covers, as applicable to the stack: env/secrets files (`.env*`), OS cruft (`.DS_Store`), dependency dirs (`node_modules/`, `vendor/`, `__pycache__/`), build output, and log directories. Append any missing entries. Then run `git ls-files` against those patterns — if a matching file is already tracked, report it to the user (do NOT `git rm` anything yourself; a tracked `.env` may mean a secret is already in history and needs rotation, which is the user's call).
 
@@ -103,6 +106,14 @@ After completing any meaningful code change, update `CHANGELOG.md`:
 - When later work resolves an item, move it to a `## Done` section (or delete it). Items already scheduled elsewhere are recorded as resolved-by-design so audits don't re-raise them.
 - **If the project uses prompt packs, the build pipeline maintains this automatically:** `/verify-wiring` writes its advisory (Check G–L) findings, `/build` writes explicitly-deferred pre-flight touchpoints, `/review-externally` writes real-but-out-of-scope findings, `/verify-build` writes confirmed out-of-scope-by-spec future needs, and `/build-verify-review` reconciles resolved items at pack-complete. Packs *pull* from this list when built; scope is never *pushed* into a pack speculatively.
 
+### Ideas Ledger
+
+`docs/dev/ideas.md` is the companion to the backlog for **unspecced suggestions** — genuine improvements noticed during execution (a better design, a missing affordance, a simplification) that scope discipline forbids building now. The rule is **capture, don't build — and don't discard**: the executor is closer to the code than the spec author was, and that intelligence is lost unless it has somewhere to land.
+
+- Entries are ≤3 lines: **what / why it's better / where** (`file:line` or page), with source (phase + date). Dedup by the "what".
+- The split that keeps both files honest: **backlog = spec'd-but-deferred obligations** (will be built; has or needs a named home) vs **ideas = unspecced suggestions** (may never be built; accepting one is a product decision for the USER).
+- Never build directly from this file, and never self-promote an idea into scope. Ideas are triaged by the user (at natural boundaries, or by a hardening/sweep pass); accepted → promoted to a spec edit or backlog entry with a named home; rejected → moved to `## Closed` with a one-line reason.
+
 ### Commits
 
 When asked to commit or after completing a task that warrants a commit:
@@ -139,6 +150,7 @@ When adding these sections, make smart adaptations based on what's already in th
 - **Commit style**: If a commit convention already exists, keep the existing one. Only add the commit section if no convention is documented. **Exception**: if the project uses prompt packs (a `docs/prompt-packs/` directory exists), the convention MUST be Conventional Commits — `/review-externally`'s scope detection greps the git log for `type(scope):` patterns, and /build's plan-to-log mapping depends on it. Flag any existing non-conventional convention to the user instead of silently keeping it.
 - **Changelog style**: If a changelog convention already exists, merge rather than replace — but preserve the chronological, per-change discipline if the project uses prompt packs (the pack pipeline requires date-stamped per-commit entries).
 - **Backlog path & framing**: Default the backlog to `docs/dev/backlog.md`, but adapt to the project's docs layout (the same way the decision-log path adapts): if `docs/` is organized into typed subdirs (`specs/`, `retros/`, etc.), keep it in a dev/working subdir; if `docs/` is flat, `docs/backlog.md` is fine; a repo-root `BACKLOG.md` next to `CHANGELOG.md` is also acceptable. If a backlog already exists at another path, keep that path and only merge missing content. The pipeline commands write to whatever path this CLAUDE.md documents — if you choose a non-default path, the project's `~/.claude/commands` (or `.claude/commands`) pipeline commands must reference the same one, so flag any mismatch. **Drop the "build pipeline maintains this automatically" bullet entirely if the project has no `docs/prompt-packs/` directory** — without the pipeline there are no automatic writers, so frame the Backlog purely as a manual triage list.
+- **Ideas Ledger path & framing**: keep it a sibling of the backlog (same directory, `ideas.md`), moving with whatever backlog path was chosen. In non-prompt-pack projects, keep the section (the capture-don't-build rule is valuable everywhere) but drop pipeline-specific mentions and frame triage as "at natural boundaries with the user".
 - **Makefile section**: Only include if the project actually uses a Makefile. If it uses a different build system (npm scripts, just, etc.), adapt the section accordingly.
 - **Phase Workflow**: If the project has specs in a different location than `docs/specs/`, adapt the path. If no spec directory exists, still add the workflow but note the spec path should be updated.
 - **Decision log path**: Use `docs/decisions/` unless the project already has an ADR directory elsewhere.

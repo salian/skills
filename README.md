@@ -11,6 +11,7 @@ A prompt-pack build pipeline — run them in order — plus a few utilities.
 | Command | What it does |
 |---|---|
 | `/create-prompt-packs [spec]` | Decompose specs (PRD, roadmap, agents.md) into milestone-by-milestone build plans that `/build` can execute. **Run this first.** |
+| `/verify-coverage [scope]` | Audit spec→pack ownership: every spec'd capability has an owning pack or an explicit deferred home. The per-pack commands can't see features that landed in no pack — this can. Run after generation, after spec changes, and at phase boundaries. |
 | `/build [pack-id]` | Execute a prompt pack — build all features in a milestone with tests, committing incrementally. Resume-safe. |
 | `/verify-build [pack-id]` | Audit build completeness: every deliverable, test, and acceptance criterion specified in the pack. Run before `/verify-wiring`. |
 | `/verify-wiring [pack-id]` | Audit integration wiring: every feature is reachable end-to-end (navigation, API callers, schedulers, UI), not just present. |

@@ -1,6 +1,6 @@
 {
   "name": "salian-claude-toolkit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Salian's Claude Toolkit: a prompt-pack build/verify/review pipeline plus workflow commands and skills (changelog, smart commits, learning capture, skill management).",
   "author": {
     "name": "Pranab Salian",

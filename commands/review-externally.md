@@ -173,6 +173,7 @@ For each issue Codex raises:
 | **Legitimate bug or security issue** | Fix it immediately, then re-run Codex to confirm the fix |
 | **Logic error or missed edge case** | Fix it immediately |
 | **Real issue, but out of this pack's scope** | Don't fix here and don't bury it as "dismissed" — append it to `docs/dev/backlog.md` under `## Open` (what / why-deferred / candidate-home / source `<pack-id> review-externally (<date>)`), deduped. This is for genuine issues that belong to a later pack, not false positives. |
+| **Good improvement idea beyond the spec** | Don't fix (overbuild) and don't dismiss — append a ≤3-line entry to `docs/dev/ideas.md` (what / why it's better / where, source `<pack-id> review-externally (<date>)`). Ideas are unspecced suggestions awaiting a user product decision — distinct from backlogged obligations. |
 | **Style preference or false positive** | Ignore — note it as dismissed |
 | **Unclear** | Read the relevant code and make a judgment call |
 
@@ -190,6 +191,7 @@ For each issue Codex raises:
 - **Fixed**: [list of fixes applied]
 - **Dismissed**: [list with one-line reason each]
 - **Backlogged**: [list with the `docs/dev/backlog.md` id + one-line reason each, or "none"]
+- **Ideas captured**: [list of `docs/dev/ideas.md` entries added, or "none"]
 ```
 
 ## Rules

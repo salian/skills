@@ -113,6 +113,7 @@ Because its content is unknowable at generation time, this pack is shaped differ
 
 - **Section 7** names `docs/dev/backlog.md` (its `## Open` entries) as the work queue instead of a concrete file list. The ≤12-files / ≤8-commits context budget does not apply; instead, instruct the executing LLM to process the backlog in priority order and split into resumable sub-sessions if it is large.
 - **Process:** read every `## Open` entry and triage each as (a) **build now**, (b) **won't build** — close with a one-line reason, or (c) **re-defer** — only with a named future home; "later" alone is not a home. Implement accepted items with the full sections 8–12 discipline applied per item (wiring, tests, failure modes), and move resolved entries to `## Done` citing this pack.
+- **Ideas ledger:** if `docs/dev/ideas.md` exists, this pack also presents its open entries to the user as a triage table (idea / source / effort / recommendation) and waits for decisions — ideas are unspecced suggestions, so accepting one is a PRODUCT decision the executing LLM must not make alone. Accepted ideas are promoted to a spec edit or a backlog entry with a named home (then optionally built here); rejected ones are closed with a one-line reason. Never build directly from an idea entry.
 - **Section 12:** acceptance = `## Open` is empty, or every remaining entry carries an explicit won't-build / re-defer disposition dated by this pack.
 - It still ends with the standard 13–18 preamble reference block — all five verification passes run on it like any other pack.
 
@@ -173,6 +174,39 @@ Every subsequent step reads names from this registry. When pack generation is de
 
 ---
 
+## STEP 3.6: GENERATE THE FEATURE COVERAGE REGISTRY (SPEC→PACK TRACEABILITY)
+
+The Schema Object Registry (STEP 3.5) makes schema omissions structurally impossible. Nothing equivalent exists for FEATURES — and the whole downstream pipeline (`/build`, `/verify-build`, `/verify-wiring`, `/review-externally`) takes a *pack* as input, so a spec'd capability that lands in no pack is invisible to every later gate. This is a proven failure class: in a production project the **login page** — specced, load-bearing, assumed by every other feature — had no owning pack and was only discovered missing after several milestones had built "past" it. Cross-cutting capabilities are the highest-risk: they belong to no module, so no module pack claims them.
+
+Before generating any pack, do ONE global pass over the specs + the milestone decomposition and enumerate **every buildable capability** into `docs/prompt-packs/_COVERAGE_REGISTRY.md`. One row per capability, at these granularities:
+
+- **Pages/screens** — one row per page. If the spec has a page-definition matrix or navigation tree, walk it row-by-row/node-by-node; those are enumerable ground truth, so missing one is mechanical negligence, not judgment.
+- **End-to-end workflows** — one row per spec'd workflow; the owner column may list several packs, but every STEP of the workflow must be covered by one of them (note step→pack in the notes column when split).
+- **Entity state machines** — one row per machine, owner = the pack that builds the machine; the notes column lists any transitions deliberately deferred (each with a named future home).
+- **Engines & background behaviors** — validation engines, schedulers, detection/matching logic, imports/exports, integrations.
+- **NFR / cross-cutting obligations** — each concrete NFR that requires built artifacts (rate limiting, audit logging, backups, observability, offline).
+
+Format:
+
+```
+| capability | spec ref | kind | phase | owner pack(s) | status | notes |
+|---|---|---|---|---|---|---|
+| Login page + session UI | build_spec §6.1, §12.1 | page | 1A | 05c | owned | |
+| Enrolment state machine | build_spec §9A.1 | state-machine | 1A | 10a | owned | withdraw/cancel/hold → DEFERRED, home: enrolment-lifecycle pack |
+| Global search | build_spec §6 | shell | 1B | — | DEFERRED | no pack yet; backlog B<n> |
+```
+
+Rules:
+1. **Every row has exactly one status: `owned` (names an existing pack file) or `DEFERRED` (names a future home AND has a `docs/dev/backlog.md` entry).** A row with neither is a generation-time failure — fix it before writing packs. "Later" alone is not a home.
+2. **Mandatory cross-cutting sweep.** Regardless of what the specs enumerate, explicitly resolve a row for each of: authentication screens (login/logout/register), password & account lifecycle, session management, global nav/app shell, global search, notifications surface, error/empty/loading states convention, settings/admin, audit logs, permissions administration, rate limiting on public endpoints, backups/DR, observability, legal/consent pages. These are the login-class items — features every spec assumes and no module owns. If a sweep item genuinely isn't in scope, record it as a `DEFERRED` row with a reason, never omit the row.
+3. **The registry is generated from the SPEC, not from the packs.** Walk the spec inventories first, then assign owners — never derive the capability list by summarizing the packs you just wrote (that reproduces exactly the blindness this step exists to fix).
+4. When pack generation is delegated to subagent batches, each batch is handed this file; a batch that discovers an unlisted capability adds the row (with owner) BEFORE building the pack section that delivers it.
+5. **Retrofit case:** when packs already exist (regeneration, conformance pass), generate the registry from the spec and reconcile — every orphan found is either assigned to an existing pack (extend its §7), given a new pack, or DEFERRED-with-home.
+
+`/verify-coverage` audits this registry against specs and packs at any time; `/verify-build` cross-checks each pack against the rows it owns.
+
+---
+
 ## STEP 4: GENERATE PROMPT-PACK FILES
 
 Output all prompt-pack files to `docs/prompt-packs/` relative to the project root.
@@ -187,6 +221,7 @@ Output all prompt-pack files to `docs/prompt-packs/` relative to the project roo
 /docs/prompt-packs/
   _PREAMBLE.prompt.md       (shared sections 13–18)
   _SCHEMA_REGISTRY.md       (global schema-object namespace — STEP 3.5)
+  _COVERAGE_REGISTRY.md     (spec→pack feature-ownership map — STEP 3.6)
   00_RUNBOOK_ENFORCER.prompt.md
   01_PROJECT_BOOTSTRAP.prompt.md
   02_ARCHITECTURE_FOUNDATION.prompt.md
@@ -194,6 +229,8 @@ Output all prompt-pack files to `docs/prompt-packs/` relative to the project roo
   NN_HARDENING_BACKLOG_SWEEP.prompt.md   (mandatory final pack — STEP 3)
   README.md
 ```
+
+Also create the two working ledgers the pipeline writes to, if absent (empty stubs with their contract headers, in the project's dev-docs dir, default `docs/dev/`): `backlog.md` (spec'd-but-deferred obligations — template in `/verify-wiring`) and `ideas.md` (unspecced executor suggestions, user-triaged — template in `/build`). Generating them up front means the first `/build` session never has to bootstrap them mid-flight, and the backlog-sweep pack's work queue exists from day one.
 
 ### Each Milestone Prompt MUST Contain These Sections (In Order):
 
@@ -427,7 +464,7 @@ Generate `/docs/prompt-packs/_PREAMBLE.prompt.md` containing the full text for t
 
 - **Section 13: Run → Observe → Fix Loop** — run test suites, review errors, fix until green, commit each fix as `fix(<scope>):`, re-run to confirm
 - **Section 14: Commit Discipline** — commit per logical change (not per milestone), Conventional Commits format, stage only related files, tests alongside features
-- **Section 15: Overbuild Prevention Rules** — no future roadmap phases, no new frameworks, no unrelated files, no schema expansion, no premature optimization
+- **Section 15: Overbuild Prevention Rules** — no future roadmap phases, no new frameworks, no unrelated files, no schema expansion, no premature optimization. PLUS the capture-don't-build rule: when the executing LLM notices a genuine improvement outside the pack's scope (a better design, a missing affordance, a simplification, a product idea), it must NOT build it AND must NOT discard it — it appends a ≤3-line entry to `docs/dev/ideas.md` (what / why it's better / where, with source pack + date). Overbuild discipline and idea capture are complements, not opposites: the discipline is only sustainable if good observations have somewhere to go.
 - **Section 16: Post-Milestone Verification (5 passes)** — Pass 1 (self-review + wiring checklist walk), Pass 2 (`/verify-build` — completeness audit: every deliverable, test, and acceptance criterion exists and matches spec), Pass 3 (`/verify-wiring` — connectivity audit: every page navigable, every API route called, every job registered, every library function imported by production code), Pass 4 (Codex review if available), Pass 5 (security review of changed + proximal code)
 - **Section 17: Self-Improvement Loop** — capture lessons via `/learn` (or, if that command is unavailable, the Self-Improvement Loop section in CLAUDE.md / a dated lessons file), extract repeated workflows into skills, update `CLAUDE.md` for new conventions
 - **Section 18: Self-Validation Checklist** — all acceptance criteria met, all 5 passes clean, CHANGELOG updated, clean git state
@@ -443,6 +480,7 @@ The `/docs/prompt-packs/README.md` must include:
 - Execution order (list all prompts in sequence, ending with the mandatory `NN_HARDENING_BACKLOG_SWEEP` pack)
 - Instruction to read `_PREAMBLE.prompt.md` before executing any milestone
 - Instruction to treat `_SCHEMA_REGISTRY.md` as the authoritative schema-object namespace — a pack declares only the objects it OWNS there and consumes every other by its exact registry name (never re-declares or renames)
+- Instruction to treat `_COVERAGE_REGISTRY.md` as the spec→pack feature-ownership map — every spec'd capability has one owning pack or a DEFERRED row with a named home; audited by `/verify-coverage` after generation, after spec changes, and at phase boundaries (the per-pack commands are structurally blind to features that landed in no pack)
 - How to resume after partial execution
 - How to revert last milestone
 - How to regenerate corrupted files
@@ -500,6 +538,9 @@ Walk every generated pack against this checklist and fix violations before repor
 - [ ] README.md lists every pack (including sub-milestone letter files) in execution order
 - [ ] The final pack in execution order is the backlog-sweep pack (`NN_HARDENING_BACKLOG_SWEEP`), and its Section 7 names `docs/dev/backlog.md` as its work queue
 - [ ] Each pack's Context Snapshot lists exactly the prior milestones that exist as files — no gaps, no phantom milestones
+- [ ] Every UI pack transcribes (or cites as binding) its page-definition-matrix row and includes the persona pass + list-view baseline per the "UI Depth Guardrails" section — a pack that renames or summarizes a matrix row instead of transcribing it is how spec'd columns/actions/filters silently vanish
+- [ ] **`_COVERAGE_REGISTRY.md` exists** (STEP 3.6) and every enumerable spec inventory (page-matrix row, nav node, workflow, state machine, cross-cutting sweep item) has a registry row with status `owned` (existing pack file) or `DEFERRED` (named home + backlog entry). Spot-check by sampling 10 random spec page-matrix rows and asserting each resolves.
+- [ ] **Deferral chains are closed.** Extract every "→ M[N]" / "belongs to M[N]" deferral from every pack's Section 5 (Non-Goals) and assert the TARGET pack's Section 4/7 actually accepts that scope (or the coverage registry lists the target as owner). A deferral pointing at a pack that never receives it is how spec'd features silently die — pack A says "→ pack B", pack B's non-goals say "→ pack C or nothing", and no verifier ever notices because every verifier is pack-scoped. Fix by assigning the scope to a real pack or converting to a DEFERRED registry row + backlog entry. Deferrals to a bare phase ("Expansion", "later", "a depth pass") with no pack and no registry row are violations.
 - [ ] **`_SCHEMA_REGISTRY.md` exists** and every table/enum named in any pack's Section 7 (declared) or Section 2 (consumed) appears as a registry row with exactly one owner.
 - [ ] **Registry conformance — no collisions, no drift.** Extract every schema object each pack DECLARES (Section 7) and CONSUMES (Section 2), and assert: (a) **no** table/enum name is declared by more than one pack; (b) every CONSUMED name exists in the registry with a declaring owner; (c) no consumed name is a paraphrase/variant of an owned name — the drift check (e.g. a pack consumes `crm_contact` but the owner declares `contact`, or consumes `lms_module` but the owner declares `module`); (d) every OWNED name obeys the STEP-2 domain-prefix rule — flag bare generic nouns (`task`, `contact`, `message`, `module`, `assessment`, `document`, `payment`, `agent`, `status`, …) that lack a domain prefix. Any hit is fixed (rename + update the registry + every referencing pack) before declaring done. *This mechanical pass is what converts collision-catching from a post-hoc audit into a generation-time gate.*
 
@@ -555,6 +596,35 @@ When generating milestone prompts that include UI deliverables:
 2. **Section 8 (Integration Wiring Checklist)** must include a verification row confirming all page files pass both the element-level linter rule and the token-level CI check.
 3. **Section 13 (Run → Observe → Fix Loop)** must include the design system CI check alongside standard lint and type checks.
 4. **Section 15 (Overbuild Prevention)** must include: "Do NOT use raw HTML elements that have design system equivalents. Do NOT use hard-coded style values that have semantic token equivalents."
+
+---
+
+## UI DEPTH GUARDRAILS (PERSONA PASS + LIST-VIEW BASELINE)
+
+The UI Consistency Guardrails above keep pages *on the design system*; this section keeps them *deep enough to use*. The recurring failure: a spec defines a list page with columns, filters, and actions; the pack summarizes it as "build the X list page"; the executor ships a bare table with a search box; review catches it three phases later (real example: a Students list shipped with no filters, no sort, no export, despite the spec's page-matrix row and a product principle mandating export on every list). Fix it at generation time:
+
+### 1. Transcribe the page contract verbatim
+
+If the spec has a **page-definition matrix** (or equivalent per-page table of data objects / columns / actions), every pack that delivers a page MUST carry that page's row into Section 7 **verbatim** — the column set, the named actions, the widgets — or cite it as binding ("the §12 row for this page is the deliverable contract; every listed column and action is a deliverable"). Summarizing or paraphrasing the row is how spec'd affordances vanish; `/verify-build` diffs the built page against the row.
+
+### 2. Persona pass (3–6 lines per screen)
+
+If the spec names target users/personas, every pack delivering a screen must include a short persona pass in Section 7 (or a 7a subsection): for each primary persona of that screen, one line — *who, their top jobs on this screen, and the affordances those jobs need* (filters, sorts, bulk actions, exports, counts, empty states). Example:
+
+```
+Persona pass — Students list:
+- Operations admin: find a student fast during a phone call → search by name/email/phone; filter by active-enrolment status.
+- Compliance manager: sweep for USI/data-quality exceptions → filter by USI status + compliance flags; export filtered set.
+- Finance user: chase balances → balance column visible, sortable.
+```
+
+The pass is generated from the spec's persona table, not invented. Its output must be reflected in the deliverable list (each affordance either delivered or explicitly non-goaled with a home). This is cheap at generation time and unaffordable later — review rounds discover these one affordance at a time.
+
+### 3. List-view baseline
+
+Every list/register page ships, by default: **search** (when the entity has human-identifiable fields), **filter on status + the 1–2 highest-signal facets**, **column sort**, **pagination** (per the project's table conventions), **row count**, **empty state**, and **export** where the spec's principles call for it. A pack may omit an element ONLY via an explicit Section 5 non-goal with a named home. "The spec row didn't mention filters" is not an omission license — the baseline applies unless overridden.
+
+**Push the baseline upstream into the spec** (fix-in-place, STEP 1.5 bucket 2): if the spec has a page-definition matrix whose intro does not state a list-page baseline, add one short paragraph there — "every list row also ships search / status+top-facet filters / sort / pagination / count / empty state / export unless the owning pack explicitly non-goals it" — and record the edit in the generation summary. One paragraph at the matrix intro covers every list row at once; per-row cells then only need to state page-specific affordances, and downstream verifiers can cite the spec (not just this skill) when flagging a bare table.
 
 ---
 
@@ -614,6 +684,12 @@ After generating all prompt-pack files, remind the user of the full execution an
 ```
 ## Execution pipeline for each milestone
 
+0. /verify-coverage       — once after generation (and after any spec change):
+                            audits spec→pack ownership so no spec'd capability
+                            lacks an owning pack. The four per-pack commands
+                            below are pack-scoped and structurally CANNOT catch
+                            a feature that landed in no pack.
+
 1. /build M[N]            — execute the prompt pack: build all deliverables, tests, commits
                             (if context runs out, resume with: /build M[N] --resume)
 
@@ -631,4 +707,6 @@ Run them in order — each assumes the previous step is done.
 Do NOT skip any of these. All are mandatory.
 
 Alternative: /build-verify-review runs all four phases for a pack in one session.
+Re-run /verify-coverage at phase boundaries (e.g. every ~8-10 packs) — coverage
+rots as packs are edited during builds.
 ```

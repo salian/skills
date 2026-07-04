@@ -102,6 +102,8 @@ Pack:    03_LEAD_CAPTURE (3 of 99 enumerated; 2 completed, 96 pending after this
 Phase:   verify-wiring
 ```
 
+If `docs/prompt-packs/_COVERAGE_REGISTRY.md` does not exist, add one warning line to the banner: `⚠ No _COVERAGE_REGISTRY.md — spec→pack coverage has never been audited; features may exist in the specs that NO pack builds (run /verify-coverage).` Do not halt — warn and continue.
+
 ### Phase A.5: Upfront clarifying-questions sweep
 
 **Run this by default at the start of every pack's session** — not just the first run. Because the designed flow is one-pack-per-session (the user manually starts each pack's session), a leftover `.bvr-state.json` from the prior pack is **not** a reason to skip the sweep. Asking clarifying questions up front, before any building, is the point of this phase: it surfaces ambiguity early and lets the user and the model align before code is written.
@@ -158,6 +160,7 @@ While `currentPack` is set:
    - Save state.
    - Print a one-line summary: e.g. `Pack 03_LEAD_CAPTURE complete (build + verify-build + verify-wiring + review-externally). Next: 04_FOO_BAR. Resume with /build-verify-review.`
    - If verify-wiring surfaced Spec Gap Questions (Checks G–L), list them below the summary line for the user to review before the next session — these were deliberately not auto-fixed. Note that they are recorded in `docs/dev/backlog.md` (with their ids) so they persist beyond this summary.
+   - If any phase appended entries to `docs/dev/ideas.md` during this pack, list them (one line each) below the summary — ideas await the user's product decision at exactly this boundary; surfacing them here is what makes capture-instead-of-discard worth the discipline.
    - Exit.
 
 ### Phase C: All packs complete

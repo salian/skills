@@ -43,6 +43,10 @@ Prompt packs have a "Spec References" section listing `docs/specs/` files with s
 
 Check for project conventions that affect what "correctly built" means: testing conventions, file naming, component library requirements, security patterns, etc.
 
+#### 0d. Cross-check the coverage registry
+
+If `docs/prompt-packs/_COVERAGE_REGISTRY.md` exists, grep it for rows whose owner is this pack. Every such row is a required deliverable **even if the pack's own text omits it** — the registry is the spec→pack contract, and a pack that drifted out from under its registry rows is exactly the silent-omission class this audit exists to catch. Add any registry-owned capability missing from the pack's Section 7 to the audit inventory, and flag the pack-text/registry mismatch in the report.
+
 ### Phase 1: Audit deliverable files (Section 7)
 
 Prompt packs list required files in their "Required Deliverables" section (typically section 7), usually as directory trees with descriptions.
@@ -130,6 +134,7 @@ For each spec file read in Phase 0b, check requirements from the specific sectio
 - Data model constraints (e.g. "same email + org within 24h")
 - Security requirements (e.g. "formula injection prevention in CSV")
 - Performance requirements (e.g. "time-limited signed URLs")
+- **Page-contract rows**: if the spec has a page-definition matrix (per-page columns/actions table), diff every UI page this pack delivers against its matrix row — every listed column, filter, and action is a requirement. A built list page missing a spec'd action (export, merge, bulk) or shipping search-only where the row lists filters is a PARTIAL, not a pass.
 
 ### Phase 6: Report
 

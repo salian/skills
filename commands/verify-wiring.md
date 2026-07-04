@@ -266,6 +266,7 @@ After running Checks G–L, append every **new, real** advisory finding to the p
    - **Candidate home** (the pack or lane most likely to consume it — often the project's hardening/housekeeping pass)
    - **Source** (`<pack-id> verify-wiring (<YYYY-MM-DD>)`)
 3. **Do NOT backlog** a finding that is (a) already a tracked open item, (b) confirmed resolved-by-design (instead record it as `## Done` / a `resolved-by-design` note so the next audit doesn't re-raise it), or (c) too speculative to act on (leave it in the report only).
+3b. **Route by kind: obligation vs idea.** A finding grounded in the spec or in sibling parity (something the product is *supposed* to have) goes to `docs/dev/backlog.md`. A finding that is an unspecced improvement suggestion (a better interaction, a nice-to-have affordance no spec mentions) goes to `docs/dev/ideas.md` instead (≤3 lines: what / why / where, source `<pack-id> verify-wiring (<date>)`). Ideas require a product decision by the user; never promote one to the backlog yourself.
 4. **Reconcile**: if this pack's build resolved an item already in `## Open`, move it to `## Done` (or delete it) with the resolving pack noted.
 
 Backlog file template (when creating it fresh):

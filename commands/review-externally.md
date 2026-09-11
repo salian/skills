@@ -93,39 +93,55 @@ Try to find the prompt-pack scope from recent commits. Fall back in this order:
 
 #### Run the review
 
-> ⚠️ **Codex CLI quirk**: `codex review --base <BRANCH> "<prompt>"` errors with
-> `the argument '--base <BRANCH>' cannot be used with '[PROMPT]'`. The
-> `--base` form does NOT accept a custom prompt — Codex uses its built-in
-> review prompt and ignores yours. Don't waste a round trip retrying with
-> a prompt argument; either drop the prompt entirely (recommended) or use
-> `--uncommitted` (which DOES accept a prompt).
+> ⚠️ **Codex CLI quirk**: `codex review` does NOT accept a custom prompt with
+> ANY scope flag. All three forms error with
+> `the argument '--<flag>' cannot be used with '[PROMPT]'` — this includes
+> `--uncommitted` (verified rejected on codex 2026-07, despite `--help`
+> showing `review --uncommitted [PROMPT]`). Codex always uses its built-in
+> review prompt. Don't waste round trips retrying with a prompt argument —
+> run the bare form.
 
 ```bash
-# With base — NO prompt argument allowed:
+# All scope forms — NO prompt argument:
 $CODEX_CMD review --base HEAD~$N
-
-# Uncommitted — prompt IS allowed:
-$CODEX_CMD review --uncommitted "Review the following git diff for bugs, logic errors, security issues, and missed edge cases. Be concise — only flag real problems, not style preferences."
-
-# Single commit — NO prompt argument allowed (same constraint as --base):
+$CODEX_CMD review --uncommitted
 $CODEX_CMD review --commit <SHA>
 ```
 
-If you need to bias Codex's attention toward specific concerns on a `--base` review (e.g. "focus on concurrency in archivePillar"), brief it via the spawning agent's prompt or include the guidance inline in the changes themselves (commit message, code comment) — the `--base` form will pick that up from the diff.
+If you need to bias Codex's attention toward specific concerns (e.g. "focus on concurrency in archivePillar"), include the guidance inline in the changes themselves (commit message, code comment) — the review will pick that up from the diff. If the diff mixes in-scope and out-of-scope work (e.g. an unrelated in-flight branch), you cannot scope Codex via a prompt — run it on everything and filter findings by file path during triage instead.
 
 Use the default Codex model selection. If you need to force Mini on a ChatGPT-linked Codex CLI, use `-m gpt-5.1-codex-mini`; do not use `--model o4-mini`.
 
-#### Run it to a FILE, `timeout`-wrapped, via your runner's backgrounding
+#### Run it to a FILE, bounded, via your runner's backgrounding
 
-A `codex review` takes minutes and emits a large reasoning trace. Always redirect to a file, bound it with `timeout`, and run it detached:
+A `codex review` takes minutes and emits a large reasoning trace. Always redirect to a file, bound the wall-clock, and run it detached.
+
+> ⚠️ **Do NOT prefix the command with a bare `timeout` — it fails on macOS.**
+> `timeout` is GNU coreutils; on Darwin the bare word errors with
+> `command not found: timeout` (only `gtimeout` exists, and only if coreutils
+> is installed), so the review **never starts** and leaves a tiny (~37-byte)
+> output file containing `command not found: timeout`. This is a silent
+> launch failure — it looks like an empty review, not an error.
+
+**Bound the run with your runner's own timeout parameter** (e.g. Claude Code's Bash `timeout:` field, set to ~900000 ms), and launch WITHOUT any `timeout`/`gtimeout` word in the command string:
 
 ```bash
 # Stable, knowable output path (scratchpad or repo-local tmp).
 OUT=/tmp/codex-review-$(git rev-parse --short HEAD).txt
-# `timeout` converts a hang into a real exit (code 124) so a stuck run still
-# TERMINATES and notifies, instead of waiting forever (see Step 2.6).
-timeout 900 $CODEX_CMD review --base HEAD~$N > "$OUT" 2>&1
+$CODEX_CMD review --base HEAD~$N > "$OUT" 2>&1
+# ↑ run via the runner's background mode + its timeout param (NO `timeout` prefix).
 ```
+
+Only if your runner has NO timeout parameter, add a shell timeout binary **conditionally** — never unconditionally:
+
+```bash
+# Portable: use `timeout` (Linux) or `gtimeout` (macOS+coreutils) if present,
+# else nothing. The bare-`timeout` trap is that it's absent on stock macOS.
+TO="$(command -v timeout || command -v gtimeout || true)"
+${TO:+$TO 900} $CODEX_CMD review --base HEAD~$N > "$OUT" 2>&1
+```
+
+Either way, **after the first launch, sanity-check the output file**: a tiny file whose content is `command not found: timeout` (or `EXIT=127`) means the review never ran — fix the launch (drop the prefix) and relaunch, don't score it as a review.
 
 **Launch it through your runner's native backgrounding** (e.g. Claude Code's background Bash / a job that emits a completion event), NOT a hand-rolled poll loop. That is the better completion *trigger* for two reasons: it is event-driven (no `sleep` loop), and it tracks the **specific PID you launched**, so it is immune to the lingering-children trap below — it fires when your wrapped command returns, which is after the verdict is written. Capture the exit code from that completion event.
 
@@ -181,17 +197,49 @@ For each issue Codex raises:
 
 **When a finding touches a classification, invariant, or state machine, re-derive the whole decision table and fix every cell in one pass** — don't patch only the flagged case. Local case-patching of these is the main driver of refinement-of-refinement review rounds: each patch exposes the next adjacent case.
 
+**Tag every finding with its class.** This costs nothing and is how we learn what the reviewer is actually for:
+
+| Class | Meaning |
+|---|---|
+| **(a) violates-spec** | Code fails the pack's own objective / deliverables / acceptance criteria |
+| **(b) spec-defect** | The SPEC is wrong, incomplete, or impossible — something no conformance gate could see |
+| **(c) out-of-scope** | A real code observation, but outside this pack's deliverables or threat model |
+
+Class **(b)** is the unique value of reviewing *without* the pack in context: every other gate (`/verify-build`, `/verify-wiring`) checks conformance **to** the spec and is structurally blind to a defect **in** it. Track the mix: if (b) is consistently non-zero, unscoped review is earning its keep. If (b) is reliably zero while (c) dominates, that is evidence to give the reviewer the pack (and to ask it to attack the pack, not just the code).
+
+### Step 3.5: Loop control — when to re-run, when to stop
+
+Re-running is the default. The reviewer is a **sampler, not a decision procedure**: a clean round is evidence, not proof, and a later round can surface a genuine defect an earlier one missed. So there is **no cap on total rounds** — a fixed count has no correlation with "done" and would cut real findings arbitrarily.
+
+Terminate on *consecutive evidence* instead:
+
+> **Exit when 2 consecutive rounds produce zero LEGITIMATE findings.**
+> Dismissed, backlogged, and ideas findings do not count — per the triage table, they never trigger a retry. One clean round is a single sample; two in a row is the signal.
+
+This is only meaningful if the triage table is actually applied. **The dominant failure mode is treating every finding as legitimate-and-fix-now** — the loop then cannot converge, because a generative reviewer always finds *something*, and each fix enlarges the surface for the next round. If several rounds have passed with nothing backlogged or dismissed, you are almost certainly mis-triaging: stop and re-read the table. (Observed: one pack ran 40 rounds with 4 backlogs and 1 dismissal; the triage rule alone would have ended it near round 20.)
+
+**Regression circuit-breaker.** If a round's fix repairs a defect that the PREVIOUS round's fix introduced, do not just fix it and continue. Two such regressions in the same file or component means the defect-introduction rate has caught up with the fix rate — the loop is random-walking, not converging, and more rounds can make the code *worse*. Stop patching and **change approach**:
+
+- replace the component with a well-tested library that already solves the problem (usually the right answer), or
+- redesign it in one deliberate pass instead of N local patches, or
+- backlog the remaining class with its rationale and converge.
+
+Report a breaker trip explicitly. It is a finding about the *process*, not the code, and the user should see it.
+
 ### Step 4: Report
 
 ```
 ## Codex Review Results
 
 - **Scope**: [uncommitted | HEAD~N]
+- **Round**: N (consecutive zero-legitimate rounds so far: K of 2)
 - **Findings**: N total (M legitimate, K dismissed, J backlogged)
+- **Classes**: (a) violates-spec: N · (b) spec-defect: N · (c) out-of-scope: N
 - **Fixed**: [list of fixes applied]
 - **Dismissed**: [list with one-line reason each]
 - **Backlogged**: [list with the `docs/dev/backlog.md` id + one-line reason each, or "none"]
 - **Ideas captured**: [list of `docs/dev/ideas.md` entries added, or "none"]
+- **Regression breaker**: [not tripped | TRIPPED — <component>, <approach change taken>]
 ```
 
 ## Rules
@@ -204,3 +252,7 @@ For each issue Codex raises:
 - **A pass requires a positive no-issues verdict, not silence.** Exit code 0 alone is not a pass — Codex can exit 0 on an error or usage limit. If the file has no verdict block and no failure marker after the timeout, treat it as hung (kill + retry once), not clean. A usage-limit/error file is `blocked-*`, never `passed`.
 - **Fix legitimate findings before moving on.** Don't just report them — fix them. The point of external review is to catch things self-review missed.
 - **Re-run after fixing.** Fixes can introduce new issues. Run Codex again on the fixes to confirm they're clean.
+- **No round cap — exit on 2 consecutive zero-LEGITIMATE rounds.** The reviewer samples; it never declares perfection. A count-based cap would drop real findings arbitrarily (in one observed run, the most valuable finding — a broken clean-checkout install — arrived at round 22). Terminate on consecutive evidence instead. See Step 3.5.
+- **Triage is what makes the loop terminate.** Backlogging and dismissing are not concessions; they are the mechanism. Several rounds with zero backlogs/dismissals means you are mis-triaging, not that everything is legitimate.
+- **Trip the regression breaker rather than patching again.** A fix repairing the prior fix, twice in one component, means change approach (library / redesign / backlog the class) — not another round. See Step 3.5.
+- **Findings are evidence about the process too.** Tag each with class (a)/(b)/(c) and report the mix; it is what tells us whether an unscoped reviewer is earning its keep.

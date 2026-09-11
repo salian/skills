@@ -138,7 +138,7 @@ While `currentPack` is set:
    - `review-externally` → `/review-externally <pack>`
 
 3. **Interpret the result:**
-   - **Passed**: append a `passed` history entry, advance to the next phase (or to `pack-complete` after `review-externally`), reset `phaseAttempts` to 0, save state, continue. There is NO attempt cap — convergence happens when the phase reports clean.
+   - **Passed**: append a `passed` history entry, advance to the next phase (or to `pack-complete` after `review-externally`), reset `phaseAttempts` to 0, save state, continue. There is NO attempt cap — a phase passes on its own termination criterion (checklist clean for verify-*; 2 consecutive zero-legitimate rounds for `review-externally`).
    - **Findings exist**: append a `findings` history entry summarizing them. Fix the findings in this same turn — read the verifier's report, apply edits, run the project's lint+build commands to confirm no regressions, commit each logical fix as its own commit (per project CLAUDE.md commit conventions). Do NOT advance the phase. Loop back to step 1 to re-run the same phase. Keep iterating until clean. When a finding touches a classification/invariant/state-machine, re-derive the full decision table and fix every case in that one iteration rather than patching only the flagged case — this is what stops the refinement-of-refinement loop. `phaseAttempts` is observational only — its growing value is a signal for the user (visible in the per-iteration log line) to manually intervene if the loop looks runaway.
 
      **What counts as a finding (per phase):**
@@ -153,12 +153,19 @@ While `currentPack` is set:
    - **Reconcile `docs/dev/backlog.md`:** if this just-completed pack resolved any item open in the backlog (it built what an entry was waiting for), move that entry to `## Done` (or delete it) with the resolving pack noted. This is the only backlog write the orchestrator itself makes; new items are written by the phases (`/verify-wiring` Phase 2.6, `/build` pre-flight, `/review-externally` triage).
    - Clear `currentPack = null`, `currentPhase = null`, `phaseAttempts = 0`, save state.
    - If `--only` was set and this was its pack, halt cleanly with "only-mode complete".
-   - Recompute `pending`. If empty, fall through to Phase C.
-   - Otherwise halt cleanly — the next pack starts in a new session.
+   - **Re-enumerate packs from disk and recompute `pending`** (do not reuse the list from the start of the run — a pack may have landed while this one was building). If empty, fall through to Phase C.
+   - Otherwise halt cleanly — the next pack starts in a new session. `pending[0]` is the next pack, and its id goes in the resume command below.
 
 5. **Clean-halt actions** (any designed boundary):
    - Save state.
-   - Print a one-line summary: e.g. `Pack 03_LEAD_CAPTURE complete (build + verify-build + verify-wiring + review-externally). Next: 04_FOO_BAR. Resume with /build-verify-review.`
+   - Print a one-line summary naming the completed pack and the next one: e.g. `Pack 03_LEAD_CAPTURE complete (build + verify-build + verify-wiring + review-externally). Next: 04_FOO_BAR.`
+   - **Always end with the exact resume command, on its own line, in a `bash` fenced block, with the next pack's FULL id filled in** — never the bare `/build-verify-review`, and never a placeholder. The user should be able to run it without looking anything up:
+
+     ```bash
+     /build-verify-review 04_FOO_BAR
+     ```
+
+     Derive the id from `pending[0]` of the freshly recomputed queue (step 4), and state one line of what that pack covers plus anything about it worth knowing before starting (a migration, an enum widening, a known-risky area) — the point of the boundary is to let the user decide whether to continue, and that decision needs the id AND the shape of what is next. If `pending` is empty, say so instead and skip the command.
    - If verify-wiring surfaced Spec Gap Questions (Checks G–L), list them below the summary line for the user to review before the next session — these were deliberately not auto-fixed. Note that they are recorded in `docs/dev/backlog.md` (with their ids) so they persist beyond this summary.
    - If any phase appended entries to `docs/dev/ideas.md` during this pack, list them (one line each) below the summary — ideas await the user's product decision at exactly this boundary; surfacing them here is what makes capture-instead-of-discard worth the discipline.
    - Exit.
@@ -167,13 +174,18 @@ While `currentPack` is set:
 
 When `pending` is empty after recomputation:
 - Print a final summary: total packs in `completedPacks`, commits added during this run (`git log --since=...` filtered), any halts in history.
+- State plainly that there is no next pack and therefore no resume command — the queue is empty, not merely quiet. If new packs are expected, name `/create-prompt-packs` as the way to add them.
 - Save and exit.
 
 ## Rules
 
 1. **One state save per state transition.** Save after: starting a phase, finishing a phase, advancing a pack, halting. Never let in-memory state diverge from the file — a kill -9 mid-step should still leave the orchestrator able to resume sensibly.
 
-2. **No attempt cap.** Phases stop only when they report clean. `phaseAttempts` is observational — track it, print it, but never use it to halt. A long convergence loop is information, not a failure. The user has visibility (per-iteration log lines) and can intervene manually if a loop looks runaway.
+2. **No attempt cap — but every phase needs a termination criterion.** `phaseAttempts` is observational: track it, print it, never use it to halt. A count has no correlation with "done", and capping drops real findings arbitrarily. Phases stop on *evidence* instead:
+   - `verify-build` / `verify-wiring` are finite checklists — they stop when they report clean.
+   - `review-externally` is a generative sampler that never declares perfection. It stops on **2 consecutive rounds with zero LEGITIMATE findings** (dismissed/backlogged/ideas do not count). Its own Step 3.5 owns this rule; the orchestrator just honors the phase's verdict.
+
+   If a phase has run several rounds with nothing backlogged or dismissed, the finding triage is being mis-applied — that, not the round count, is the thing to correct.
 
 3. **Fix findings in the orchestrator turn, then re-run the verifier.** Do not invoke the verifier twice in a row hoping for a different result without changing code in between.
 
@@ -211,16 +223,25 @@ After each fix iteration print:
 [03_LEAD_CAPTURE] verify-wiring attempt 1 → 3 findings, applied 3 fixes, 2 commits, retrying
 ```
 
-After every 5 attempts on the same phase, also print a runaway-watch line:
+After every 5 attempts on the same phase, also print a runaway-watch line — and, for `review-externally`, the triage mix, which is the actual diagnostic:
 
 ```
 [03_LEAD_CAPTURE] verify-wiring on attempt 5 — convergence is slow. /build-verify-review --status to inspect; kill this session if it looks runaway.
+[03_LEAD_CAPTURE] review-externally on attempt 5 — triage mix so far: 12 legitimate, 0 backlogged, 0 dismissed; classes (a)9/(b)0/(c)3; 1 regression-of-a-fix. Zero backlogs/dismissals across 5 rounds means the triage table is being mis-applied — re-read it before another round.
 ```
 
-On pack-complete halt, one line:
+A high round count is not itself the problem. **Zero backlogs/dismissals, findings concentrated in one file, or fixes repairing prior fixes** are the problems; the round count is just where they become visible.
+
+On pack-complete halt, the summary line followed by the runnable resume command:
 
 ```
-Pack 03_LEAD_CAPTURE complete (build → verify-build → verify-wiring → review-externally). Next: 04_FOO_BAR. Resume with /build-verify-review when ready.
+Pack 03_LEAD_CAPTURE complete (build → verify-build → verify-wiring → review-externally). Next: 04_FOO_BAR — adds the lead-scoring schema (migration + enum widening).
 ```
+
+```bash
+/build-verify-review 04_FOO_BAR
+```
+
+The pack id in that command is mandatory. `Resume with /build-verify-review` on its own is a papercut: it makes the user re-derive the queue by hand at exactly the moment the orchestrator already knows the answer.
 
 On hard halt, a multi-line block with the halt reason, pack, phase, and verifier output.

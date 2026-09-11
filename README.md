@@ -21,6 +21,7 @@ A prompt-pack build pipeline — run them in order — plus a few utilities.
 | `/self-improvement-loop` | Add a self-improvement loop to a project's `CLAUDE.md` — learning behaviors, decision logging, backlog/ideas/process-notes ledgers, commit/changelog practices. Idempotent. |
 | `/changelog [description]` | Update `CHANGELOG.md` (Keep a Changelog format) from your recent changes. |
 | `/smart-commit [message]` | Stage changes, update the changelog, and create a well-formatted commit. |
+| `/retro [focus]` | Run a session/milestone retrospective — write a dated entry to `docs/retros/`, route durable lessons to memory and follow-ups to the backlog/ideas ledgers. |
 
 ### Skills (Claude invokes automatically from context)
 

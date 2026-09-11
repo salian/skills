@@ -6,6 +6,20 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- retro: new command — run a session/milestone retrospective, writing a dated entry to `docs/retros/` and routing durable lessons to memory and follow-ups to the backlog/ideas ledgers. Previously only referenced by `self-improvement-loop`'s generated guidance; now actually distributed.
+
+### Changed
+
+- build-verify-review: the pack-complete summary now re-enumerates packs from disk and ends with the **exact** resume command including the next pack's full id (`/build-verify-review 04_FOO_BAR`) in a runnable block, plus one line on what that pack covers and anything risky about it. The bare `/build-verify-review` made the user re-derive a queue the orchestrator had just computed. When the queue is empty it now says so explicitly rather than silently omitting the command.
+- build: STEP 6 proportionality check — before committing a step, compare what was built to what its §7 line asks for; an order-of-magnitude overshoot stops and asks, and prefers a well-tested library over a bespoke reimplementation. Catches the overbuild Non-Goals do not: the right feature built far too elaborately.
+
+### Fixed
+
+- review-externally: corrected the Codex CLI guidance. `review` rejects a custom prompt with **every** scope flag including `--uncommitted` (the previous note claimed that form accepted one), and it rejects `-m` — the model must be set via `-c model=...`. Also replaced the unconditional `timeout 900` wrapper, which is absent on stock macOS and silently fails the launch with a 37-byte "command not found" file that reads like an empty review; the runner's own timeout is now preferred, with a conditional `timeout`/`gtimeout` fallback.
+- review-externally: completion is now detected by the verdict block in the output file rather than process liveness — `codex` leaves lingering children after writing its verdict, so polling `pgrep` waits forever on a finished run. Adds the three terminal states (verdict / blocked / hung) so a usage-limit or crashed run is never scored as a clean pass.
+
 ## [0.5.0] - 2026-08-05
 
 ### Added

@@ -363,6 +363,8 @@ Remaining: 8-12
 
 5. **Check overbuild prevention before every step.** Re-read Section 5 (Non-Goals) and Section 15 (Overbuild Prevention). It's easy to drift into implementing features from future milestones, especially when the current step's code naturally suggests them.
 
+6. **Proportionality: does this deliverable's size match its spec line?** Before committing a step, compare what you built to what its §7 text actually asks for. An order-of-magnitude overshoot means STOP and ask the user — do not ship it and let external review sort it out. Ask first whether a well-tested library (ideally one §6 already lists) does this; prefer the boring dependency to a bespoke reimplementation you then own. This is the overbuild that §5 does NOT catch: not the wrong feature, but the right feature built far too elaborately — invisible from the inside, because each increment looks justified. (Observed: a one-line "Pino logger with redaction paths" deliverable shipped as ~700 lines of bespoke redaction engine and then absorbed ~30 review rounds.)
+
 6. **Context awareness.** If you're running low on context (many steps completed, large codebase), tell the user which step you're on and suggest resuming with `/build M12 --resume` in a fresh session. Don't degrade quality by rushing through remaining steps.
 
 7. **Read before you write.** Phase 3b (read existing code) is not optional. The #1 cause of inconsistent implementations is not reading adjacent code before writing new code.

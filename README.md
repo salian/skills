@@ -17,7 +17,8 @@ A prompt-pack build pipeline — run them in order — plus a few utilities.
 | `/verify-wiring [pack-id]` | Audit integration wiring: every feature is reachable end-to-end (navigation, API callers, schedulers, UI), not just present. |
 | `/review-externally [scope]` | Run an external code review (via Codex) on prompt-pack commits or recent changes. |
 | `/build-verify-review [flags]` | Orchestrator: run build → verify-build → verify-wiring → review-externally for every pack, fixing gaps autonomously. |
-| `/self-improvement-loop` | Add a self-improvement loop to a project's `CLAUDE.md` — learning behaviors, decision logging, commit/changelog practices. Idempotent. |
+| `/retrofit-pipeline-gates [flags]` | Retrofit later pipeline upgrades (coverage registry, spec red-team, backlog sweep, ideas ledger) onto an in-flight pack project whose packs predate them. Upgrades unbuilt packs in place; never regenerates. |
+| `/self-improvement-loop` | Add a self-improvement loop to a project's `CLAUDE.md` — learning behaviors, decision logging, backlog/ideas/process-notes ledgers, commit/changelog practices. Idempotent. |
 | `/changelog [description]` | Update `CHANGELOG.md` (Keep a Changelog format) from your recent changes. |
 | `/smart-commit [message]` | Stage changes, update the changelog, and create a well-formatted commit. |
 

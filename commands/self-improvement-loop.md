@@ -22,6 +22,7 @@ Add a Self-Improvement Loop to this project's CLAUDE.md. This enriches any proje
    - `### Changelog`
    - `### Backlog`
    - `### Ideas Ledger`
+   - `### Process Notes`
    - `### Commits`
    - `### Makefile`
    - `## Phase Workflow`
@@ -36,6 +37,8 @@ Add a Self-Improvement Loop to this project's CLAUDE.md. This enriches any proje
 5a. If the project uses prompt packs (a `docs/prompt-packs/` directory exists) and the backlog file doesn't exist, create it with a minimal header — `# Deferred-Items Backlog`, a one-line purpose, and empty `## Open` / `## Done` sections. Use the path chosen per the Backlog adaptation rule below (default `docs/dev/backlog.md`). In projects WITHOUT prompt packs, don't create the file — there are no automatic writers, so let it appear lazily if the team starts a manual one.
 
 5b. Same rule for the ideas ledger: if the project uses prompt packs and `docs/dev/ideas.md` (sibling path to the backlog) doesn't exist, create it with the contract header — a one-line purpose ("unspecced improvement ideas captured instead of discarded by overbuild prevention"), the backlog-vs-ideas distinction table (backlog = spec'd-but-deferred obligations, pack-owned; ideas = unspecced suggestions, **user**-triaged), the ≤3-line entry rule (what / why better / where, with source), the never-build-directly-from-this-file rule, and empty `## Open` / `## Closed` sections. Skip in non-prompt-pack projects.
+
+5c. Create the process-notes ledger regardless of whether the project uses prompt packs: if `docs/dev/process-notes.md` (sibling path to the backlog) doesn't exist, create it with the contract header — a one-line purpose ("workflow/tooling papercuts captured for later fixing, prioritized by repeat frequency"), the entry rule (what / friction / which command or step / source, with a `[×N]` repeat-count marker), the dedup-and-increment rule (recurrences bump the count and append the date, never file a duplicate), the never-fix-inline rule, and empty `## Open` / `## Closed` sections. Unlike backlog and ideas, process notes has a writer in every project (any session that hits workflow friction), so it is not gated on prompt packs — adapt only the path to the project's docs layout.
 
 6. **Verify `.gitignore` enforcement** (the never-commit concern belongs in tooling, not prose). Check that `.gitignore` exists and covers, as applicable to the stack: env/secrets files (`.env*`), OS cruft (`.DS_Store`), dependency dirs (`node_modules/`, `vendor/`, `__pycache__/`), build output, and log directories. Append any missing entries. Then run `git ls-files` against those patterns — if a matching file is already tracked, report it to the user (do NOT `git rm` anything yourself; a tracked `.env` may mean a secret is already in history and needs rotation, which is the user's call).
 
@@ -114,6 +117,14 @@ After completing any meaningful code change, update `CHANGELOG.md`:
 - The split that keeps both files honest: **backlog = spec'd-but-deferred obligations** (will be built; has or needs a named home) vs **ideas = unspecced suggestions** (may never be built; accepting one is a product decision for the USER).
 - Never build directly from this file, and never self-promote an idea into scope. Ideas are triaged by the user (at natural boundaries, or by a hardening/sweep pass); accepted → promoted to a spec edit or backlog entry with a named home; rejected → moved to `## Closed` with a one-line reason.
 
+### Process Notes
+
+`docs/dev/process-notes.md` is the third sibling ledger — the durable home for **workflow/tooling papercuts**: friction in the *process itself* (an ambiguous command instruction, an easy-to-forget step, a pipeline stage that keeps re-prompting, a confusing hand-off between commands), as distinct from product/code work (backlog) or product suggestions (ideas). The rule is **capture, don't fix inline — and don't discard**: a papercut noticed mid-task rarely justifies breaking flow to fix, but it evaporates unless it lands somewhere.
+
+- Entries are terse: **what / friction observed / which command or step / source** (phase + date), prefixed with a `[×N]` repeat-count marker (starts at `[×1]`).
+- **Track repeat frequency — it is the prioritization signal.** Dedup by the "what": when the same papercut recurs, do NOT file a second entry — increment `N` and append the new date to that entry. Impact ≈ *per-occurrence cost × frequency*, so a small annoyance hit every session can outrank a painful one seen once. A rising `N` is the cue to promote a fix.
+- Never fix a papercut inline just because you noticed it (that is scope creep on the current task). Process notes are triaged at natural boundaries — accepted → becomes a concrete fix (a skill/command edit, or a backlog entry if the fix is larger) and the note moves to `## Closed` referencing the fix; rejected → moved to `## Closed` with a one-line reason.
+
 ### Commits
 
 When asked to commit or after completing a task that warrants a commit:
@@ -151,6 +162,7 @@ When adding these sections, make smart adaptations based on what's already in th
 - **Changelog style**: If a changelog convention already exists, merge rather than replace — but preserve the chronological, per-change discipline if the project uses prompt packs (the pack pipeline requires date-stamped per-commit entries).
 - **Backlog path & framing**: Default the backlog to `docs/dev/backlog.md`, but adapt to the project's docs layout (the same way the decision-log path adapts): if `docs/` is organized into typed subdirs (`specs/`, `retros/`, etc.), keep it in a dev/working subdir; if `docs/` is flat, `docs/backlog.md` is fine; a repo-root `BACKLOG.md` next to `CHANGELOG.md` is also acceptable. If a backlog already exists at another path, keep that path and only merge missing content. The pipeline commands write to whatever path this CLAUDE.md documents — if you choose a non-default path, the project's `~/.claude/commands` (or `.claude/commands`) pipeline commands must reference the same one, so flag any mismatch. **Drop the "build pipeline maintains this automatically" bullet entirely if the project has no `docs/prompt-packs/` directory** — without the pipeline there are no automatic writers, so frame the Backlog purely as a manual triage list.
 - **Ideas Ledger path & framing**: keep it a sibling of the backlog (same directory, `ideas.md`), moving with whatever backlog path was chosen. In non-prompt-pack projects, keep the section (the capture-don't-build rule is valuable everywhere) but drop pipeline-specific mentions and frame triage as "at natural boundaries with the user".
+- **Process Notes path & framing**: keep it a sibling of the backlog (same directory, `process-notes.md`), moving with whatever backlog path was chosen. Unlike the backlog and ideas ledger, this section applies to **every** project regardless of prompt-pack use — the writer is any session that hits workflow friction, which every project has. Always include it. Preserve the `[×N]` repeat-count mechanic verbatim; it is the section's whole point (frequency drives prioritization). If the project has no `docs/` at all, a repo-root `PROCESS-NOTES.md` next to `CHANGELOG.md` is acceptable, matching wherever the backlog landed.
 - **Makefile section**: Only include if the project actually uses a Makefile. If it uses a different build system (npm scripts, just, etc.), adapt the section accordingly.
 - **Phase Workflow**: If the project has specs in a different location than `docs/specs/`, adapt the path. If no spec directory exists, still add the workflow but note the spec path should be updated.
 - **Decision log path**: Use `docs/decisions/` unless the project already has an ADR directory elsewhere.

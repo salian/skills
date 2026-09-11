@@ -6,6 +6,12 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-05
+
+### Added
+
+- self-improvement-loop: Process Notes ledger (`docs/dev/process-notes.md`) — a third sibling to backlog/ideas that captures **workflow/tooling papercuts** (ambiguous command instructions, easy-to-forget steps, clunky hand-offs) instead of leaving them to evaporate in a retro. Entries carry a `[×N]` repeat-count marker; recurrences increment `N` and append a date rather than filing a duplicate, so repeat frequency becomes the prioritization signal (impact ≈ per-occurrence cost × frequency). Unlike backlog/ideas it is created in **every** project, not just prompt-pack ones, since every project has a friction writer (any session). Includes the section template, create step (5c), heading-detection entry, and a path/framing adaptation rule.
+
 ## [0.4.0] - 2026-07-04
 
 ### Added
